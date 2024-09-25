@@ -39,23 +39,25 @@ export default function Component() {
 //console.log('Used Letters:', newUsedLetters);
 
   const checkWord = useCallback(() => {
-    const currentWord = board[currentAttempt]
+    const currentWord = board[currentAttempt].toLowerCase()
+    const normalizedTarget = targetWord.toLowerCase()
+
     if (currentWord.length !== WORD_LENGTH) return
 
-    console.log('Current Word:', currentWord);  /////////////
+    console.log('Current Word:', currentWord)
 
     let newUsedLetters = { ...usedLetters }
     let correct = 0
     let letterCount: Record<string, number> = {}
 
     // Count occurrences of each letter in the target word
-    for (let letter of targetWord) {
+    for (let letter of normalizedTarget) {
       letterCount[letter] = (letterCount[letter] || 0) + 1
     }
 
     // First pass: Mark correct letters
     for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] === targetWord[i]) {
+      if (currentWord[i] === normalizedTarget[i]) {
         newUsedLetters[currentWord[i]] = "correct"
         correct++
         letterCount[currentWord[i]]--
@@ -64,19 +66,24 @@ export default function Component() {
 
     // Second pass: Mark present or absent letters
     for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] !== targetWord[i]) {
-        if (letterCount[currentWord[i]] > 0) {
-          newUsedLetters[currentWord[i]] = "present"
-          letterCount[currentWord[i]]--
+      if (currentWord[i] !== normalizedTarget[i]) {
+        const letter = currentWord[i]
+        if (letterCount[letter] > 0) {
+          if (newUsedLetters[letter] !== "correct") {
+            newUsedLetters[letter] = "present"
+          }
+          letterCount[letter]--
         } else {
-          newUsedLetters[currentWord[i]] = "absent"
+          if (newUsedLetters[letter] !== "correct" && newUsedLetters[letter] !== "present") {
+            newUsedLetters[letter] = "absent"
+          }
         }
       }
     }
 
     setUsedLetters(newUsedLetters)
 
-    console.log('Used Letters:', newUsedLetters); /////////////
+    console.log('Used Letters:', newUsedLetters)
 
     if (correct === WORD_LENGTH) {
       setScore((prevScore) => prevScore + 100 + timeLeft)
