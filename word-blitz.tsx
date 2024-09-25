@@ -3,18 +3,17 @@
 import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
+import wordList from './public/words.json'
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
-const GAME_DURATION = 180 // 3 minutes in seconds
+const GAME_DURATION = 120 // 3 minutes in seconds
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
   ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
   ["Z", "X", "C", "V", "B", "N", "M"],
 ]
-
-const words = ['REACT', 'REDUX', 'STATE', 'PROPS', 'HOOKS', 'ASYNC', 'FETCH', 'ROUTE', 'STYLE', 'BUILD']
 
 export default function Component() {
   const [board, setBoard] = useState(Array(MAX_ATTEMPTS).fill(""))
@@ -25,6 +24,15 @@ export default function Component() {
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
   const [targetWord, setTargetWord] = useState("")
+  const [words, setWords] = useState<string[]>([])
+
+  useEffect(() => {
+    setWords(wordList.words)
+  }, [])
+
+  const getRandomWord = useCallback(() => {
+    return words[Math.floor(Math.random() * words.length)]
+  }, [words])
 
   const checkWord = useCallback(() => {
     const currentWord = board[currentAttempt]
@@ -49,7 +57,7 @@ export default function Component() {
     if (correct === WORD_LENGTH) {
       setScore((prevScore) => prevScore + 100 + timeLeft)
       setStreak((prevStreak) => prevStreak + 1)
-      setTargetWord(words[Math.floor(Math.random() * words.length)])
+      setTargetWord(getRandomWord())
       setBoard(Array(MAX_ATTEMPTS).fill(""))
       setCurrentAttempt(0)
       setUsedLetters({})
@@ -58,7 +66,7 @@ export default function Component() {
     } else {
       setCurrentAttempt((prev) => prev + 1)
     }
-  }, [board, currentAttempt, targetWord, usedLetters, timeLeft])
+  }, [board, currentAttempt, targetWord, usedLetters, timeLeft, getRandomWord])
 
   const handleKeyPress = useCallback(
     (key: string) => {
@@ -103,14 +111,16 @@ export default function Component() {
     setUsedLetters({})
     setGameState("playing")
     setTimeLeft(GAME_DURATION)
-    setTargetWord(words[Math.floor(Math.random() * words.length)])
+    setTargetWord(getRandomWord())
     setScore(0)
     setStreak(0)
   }
 
   useEffect(() => {
-    resetGame()
-  }, [])
+    if (words.length > 0) {
+      resetGame()
+    }
+  }, [words])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white p-4">
