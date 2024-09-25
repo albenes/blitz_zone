@@ -17,10 +17,10 @@ import SpeedSudoku from "./speed-sudoku"
 const games = [
   { name: "Word Blitz", icon: <Zap className="w-4 h-4" />, component: <WordBlitz /> },
   { name: "Speed Sudoku", icon: <Clock className="w-4 h-4" />, component: <SpeedSudoku /> },
-  { name: "Math Challenge", icon: <Brain className="w-4 h-4" />, component: <div>Math Challenge Game</div> },
-  { name: "Color Match", icon: <Palette className="w-4 h-4" />, component: <div>Color Match Game</div> },
-  { name: "Memory Match", icon: <Brain className="w-4 h-4" />, component: <div>Memory Match Game</div> },
-  { name: "Anagram Solver", icon: <Shuffle className="w-4 h-4" />, component: <div>Anagram Solver Game</div> },
+  // { name: "Math Challenge", icon: <Brain className="w-4 h-4" />, component: <div>Math Challenge Game</div> },
+  // { name: "Color Match", icon: <Palette className="w-4 h-4" />, component: <div>Color Match Game</div> },
+  // { name: "Memory Match", icon: <Brain className="w-4 h-4" />, component: <div>Memory Match Game</div> },
+  // { name: "Anagram Solver", icon: <Shuffle className="w-4 h-4" />, component: <div>Anagram Solver Game</div> },
 ]
 
 export default function BlitzZoneLayout() {

@@ -56,8 +56,9 @@ const SpeedSudoku: React.FC = () => {
   const [grid, setGrid] = useState<SudokuGrid>(() => generateSudoku())
   const [emptySubgrid, setEmptySubgrid] = useState<[number, number]>([0, 0])
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION)
-  const [gameState, setGameState] = useState<'ready' | 'playing' | 'won' | 'lost'>('ready')
+  const [gameState, setGameState] = useState<'ready' | 'playing' | 'summary'>('ready')
   const [score, setScore] = useState(0)
+  const [streak, setStreak] = useState(0)
   const [totalCompleted, setTotalCompleted] = useState(0)
 
   const initializeGame = useCallback(() => {
@@ -77,62 +78,45 @@ const SpeedSudoku: React.FC = () => {
   }, [])
 
   useEffect(() => {
-    initializeGame()
-  }, [initializeGame])
+    if (gameState === 'ready') {
+      initializeGame()
+    }
+  }, [gameState, initializeGame])
 
   useEffect(() => {
     if (gameState === 'playing' && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
       return () => clearTimeout(timer)
     } else if (timeLeft === 0 && gameState === 'playing') {
-      setGameState('lost')
+      setGameState('summary')
     }
   }, [timeLeft, gameState])
 
-  const handleCellInput = (row: number, col: number, value: number) => {
+  const handleCellInput = (row: number, col: number, value: number | null) => {
     if (gameState !== 'playing') return
 
     const newGrid = [...grid.map(row => [...row])]
     newGrid[row][col] = value
 
-    if (!isValidMove(newGrid, row, col, value)) {
-      setTimeLeft(Math.max(0, timeLeft - PENALTY_TIME))
-      newGrid[row][col] = null // Reset the cell if the move is invalid
-    }
-
     setGrid(newGrid)
 
-    if (isSubgridComplete()) {
-      setScore(score + Math.max(0, timeLeft))
-      setTotalCompleted(totalCompleted + 1)
-      initializeGame()
-    }
-  }
-
-  const isValidMove = (grid: SudokuGrid, row: number, col: number, value: number): boolean => {
-    // Check row
-    for (let i = 0; i < GRID_SIZE; i++) {
-      if (i !== col && grid[row][i] === value) return false
-    }
-
-    // Check column
-    for (let i = 0; i < GRID_SIZE; i++) {
-      if (i !== row && grid[i][col] === value) return false
-    }
-
-    // Check subgrid
-    const startRow = Math.floor(row / SUBGRID_SIZE) * SUBGRID_SIZE
-    const startCol = Math.floor(col / SUBGRID_SIZE) * SUBGRID_SIZE
-    for (let i = 0; i < SUBGRID_SIZE; i++) {
-      for (let j = 0; j < SUBGRID_SIZE; j++) {
-        if (startRow + i !== row && startCol + j !== col && grid[startRow + i][startCol + j] === value) return false
+    if (isSubgridComplete(newGrid)) {
+      if (isSubgridValid(newGrid)) {
+        setScore(prevScore => prevScore + Math.max(0, timeLeft))
+        setStreak(prevStreak => prevStreak + 1)
+        setTotalCompleted(prevTotal => prevTotal + 1)
+        if (timeLeft > 0) {
+          initializeGame()
+        } else {
+          setGameState('summary')
+        }
+      } else {
+        setTimeLeft(Math.max(0, timeLeft - PENALTY_TIME))
       }
     }
-
-    return true
   }
 
-  const isSubgridComplete = (): boolean => {
+  const isSubgridComplete = (grid: SudokuGrid): boolean => {
     const [startRow, startCol] = emptySubgrid
     for (let i = startRow; i < startRow + SUBGRID_SIZE; i++) {
       for (let j = startCol; j < startCol + SUBGRID_SIZE; j++) {
@@ -142,53 +126,63 @@ const SpeedSudoku: React.FC = () => {
     return true
   }
 
-  const startGame = () => {
+  const isSubgridValid = (grid: SudokuGrid): boolean => {
+    const [startRow, startCol] = emptySubgrid
+    const subgrid = new Set()
+    for (let i = startRow; i < startRow + SUBGRID_SIZE; i++) {
+      for (let j = startCol; j < startCol + SUBGRID_SIZE; j++) {
+        if (subgrid.has(grid[i][j])) return false
+        subgrid.add(grid[i][j])
+      }
+    }
+    return true
+  }
+
+  const resetGame = () => {
     setTimeLeft(GAME_DURATION)
     setScore(0)
+    setStreak(0)
     setTotalCompleted(0)
-    setGameState('playing')
-    initializeGame()
+    setGameState('ready')
   }
 
   return (
-    <div className="flex flex-col items-center justify-center p-4 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 rounded-lg shadow-lg">
-      <h1 className="text-3xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400">Speed Sudoku</h1>
-      <div className="mb-4 flex justify-between w-full max-w-md">
-        <div className="text-xl font-semibold text-white">Time: {timeLeft}s</div>
-        <div className="text-xl font-semibold text-white">Score: {score}</div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white p-4">
+      <motion.h1
+        className="text-5xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400"
+        initial={{ opacity: 0, y: -50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        Speed Sudoku
+      </motion.h1>
+      <div className="mb-6 flex space-x-8">
+        <motion.div
+          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
+        </motion.div>
+        <motion.div
+          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          Score: {score}
+        </motion.div>
+        <motion.div
+          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          Streak: {streak}
+        </motion.div>
       </div>
       <AnimatePresence mode="wait">
-        {gameState === 'ready' && (
-          <motion.div
-            key="ready"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="relative"
-          >
-            <div className="grid grid-cols-9 gap-1 mb-4 filter blur-sm">
-              {Array(GRID_SIZE).fill(null).map((_, rowIndex) =>
-                Array(GRID_SIZE).fill(null).map((_, colIndex) => (
-                  <div
-                    key={`${rowIndex}-${colIndex}`}
-                    className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-lg font-semibold rounded-lg
-                                bg-gray-200
-                                ${(rowIndex + 1) % 3 === 0 ? 'border-b-2 border-gray-600' : ''}
-                                ${(colIndex + 1) % 3 === 0 ? 'border-r-2 border-gray-600' : ''}`}
-                  >
-                    {Math.floor(Math.random() * 9) + 1}
-                  </div>
-                ))
-              )}
-            </div>
-            <Button
-              onClick={startGame}
-              className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full"
-            >
-              Start Game
-            </Button>
-          </motion.div>
-        )}
         {gameState === 'playing' && (
           <motion.div
             key="playing"
@@ -207,15 +201,15 @@ const SpeedSudoku: React.FC = () => {
                 return (
                   <motion.div
                     key={`${rowIndex}-${colIndex}`}
-                    className={`w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-lg font-semibold rounded-lg
-                                ${isEmptySubgrid ? 'bg-blue-200 cursor-pointer' : 'bg-gray-200'}
-                                ${(rowIndex + 1) % 3 === 0 ? 'border-b-2 border-gray-600' : ''}
-                                ${(colIndex + 1) % 3 === 0 ? 'border-r-2 border-gray-600' : ''}`}
+                    className={`w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center text-lg font-semibold rounded-lg
+                                ${isEmptySubgrid ? 'bg-blue-200 cursor-pointer text-blue-800' : 'bg-opacity-20 bg-white text-white'}
+                                ${(rowIndex + 1) % 3 === 0 ? 'border-b-2 border-white' : ''}
+                                ${(colIndex + 1) % 3 === 0 ? 'border-r-2 border-white' : ''}`}
                     whileHover={isEmptySubgrid ? { scale: 1.1 } : {}}
                     whileTap={isEmptySubgrid ? { scale: 0.95 } : {}}
                     onClick={() => {
                       if (isEmptySubgrid) {
-                        const newValue = ((cell || 0) % 9) + 1
+                        const newValue = cell === null ? 1 : cell < 9 ? cell + 1 : null
                         handleCellInput(rowIndex, colIndex, newValue)
                       }
                     }}
@@ -227,27 +221,30 @@ const SpeedSudoku: React.FC = () => {
             )}
           </motion.div>
         )}
-        {(gameState === 'won' || gameState === 'lost') && (
+        {gameState === 'summary' && (
           <motion.div
-            key="result"
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="text-center"
+            transition={{ duration: 0.3 }}
           >
-            <p className="text-2xl font-bold mb-4 text-white">
-              {gameState === 'won' ? 'Congratulations!' : 'Time\'s up!'}
-            </p>
-            <p className="text-xl mb-4 text-white">
-              Final Score: {score}<br />
-              Completed Grids: {totalCompleted}
-            </p>
-            <Button
-              onClick={startGame}
-              className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full"
+            <motion.div
+              className="bg-white text-black p-8 rounded-lg shadow-lg text-center"
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.1, duration: 0.3 }}
             >
-              Play Again
-            </Button>
+              <h2 className="text-3xl font-bold mb-4">Game Summary</h2>
+              <p className="text-xl mb-2">Final Score: {score}</p>
+              <p className="text-xl mb-2">Streak: {streak}</p>
+              <p className="text-xl mb-4">Grids Completed: {totalCompleted}</p>
+              <Button
+                onClick={resetGame}
+                className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full transition-all duration-300 transform hover:scale-105"
+              >
+                Play Again
+              </Button>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
