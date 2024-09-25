@@ -14,15 +14,16 @@ const keyboard = [
   ["Z", "X", "C", "V", "B", "N", "M"],
 ]
 
-const words = ['REACT', 'REDUX', 'HOOKS', 'STATE', 'PROPS', 'ASYNC', 'FETCH', 'ROUTE', 'STYLE', 'BUILD']
+const words = ['REACT', 'REDUX', 'STATE', 'PROPS', 'HOOKS', 'ASYNC', 'FETCH', 'ROUTE', 'STYLE', 'BUILD']
 
 export default function Component() {
   const [board, setBoard] = useState(Array(MAX_ATTEMPTS).fill(""))
   const [currentAttempt, setCurrentAttempt] = useState(0)
   const [usedLetters, setUsedLetters] = useState<Record<string, "correct" | "present" | "absent">>({})
-  const [gameState, setGameState] = useState("playing") // 'playing', 'won', 'lost'
+  const [gameState, setGameState] = useState("playing") // 'playing', 'summary'
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION)
   const [score, setScore] = useState(0)
+  const [streak, setStreak] = useState(0)
   const [targetWord, setTargetWord] = useState("")
 
   const checkWord = useCallback(() => {
@@ -46,10 +47,14 @@ export default function Component() {
     setUsedLetters(newUsedLetters)
 
     if (correct === WORD_LENGTH) {
-      setGameState("won")
       setScore((prevScore) => prevScore + 100 + timeLeft)
+      setStreak((prevStreak) => prevStreak + 1)
+      setTargetWord(words[Math.floor(Math.random() * words.length)])
+      setBoard(Array(MAX_ATTEMPTS).fill(""))
+      setCurrentAttempt(0)
+      setUsedLetters({})
     } else if (currentAttempt === MAX_ATTEMPTS - 1) {
-      setGameState("lost")
+      setGameState("summary")
     } else {
       setCurrentAttempt((prev) => prev + 1)
     }
@@ -88,7 +93,7 @@ export default function Component() {
       const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
       return () => clearTimeout(timer)
     } else if (timeLeft === 0) {
-      setGameState("lost")
+      setGameState("summary")
     }
   }, [timeLeft, gameState])
 
@@ -100,6 +105,7 @@ export default function Component() {
     setTimeLeft(GAME_DURATION)
     setTargetWord(words[Math.floor(Math.random() * words.length)])
     setScore(0)
+    setStreak(0)
   }
 
   useEffect(() => {
@@ -108,21 +114,6 @@ export default function Component() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white p-4">
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(100)].map((_, i) => (
-          <div
-            key={i}
-            className="absolute rounded-full bg-white opacity-10"
-            style={{
-              top: `${Math.random() * 100}%`,
-              left: `${Math.random() * 100}%`,
-              width: `${Math.random() * 4 + 1}px`,
-              height: `${Math.random() * 4 + 1}px`,
-              animation: `twinkle ${Math.random() * 5 + 5}s linear infinite`,
-            }}
-          />
-        ))}
-      </div>
       <motion.h1
         className="text-5xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400"
         initial={{ opacity: 0, y: -50 }}
@@ -147,6 +138,14 @@ export default function Component() {
           transition={{ duration: 0.5, delay: 0.2 }}
         >
           Score: {score}
+        </motion.div>
+        <motion.div
+          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          Streak: {streak}
         </motion.div>
       </div>
       <motion.div
@@ -228,22 +227,29 @@ export default function Component() {
           </motion.button>
         </div>
       </motion.div>
-      {gameState !== "playing" && (
+      {gameState === "summary" && (
         <motion.div
-          className="text-center"
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          <p className="text-3xl font-bold mb-6">
-            {gameState === "won" ? "Congratulations! You won!" : "Game Over!"}
-          </p>
-          <Button
-            onClick={resetGame}
-            className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full transition-all duration-300 transform hover:scale-105"
+          <motion.div
+            className="bg-white text-black p-8 rounded-lg shadow-lg text-center"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.1, duration: 0.3 }}
           >
-            Play Again
-          </Button>
+            <h2 className="text-3xl font-bold mb-4">Game Summary</h2>
+            <p className="text-xl mb-2">Final Score: {score}</p>
+            <p className="text-xl mb-4">Words Guessed: {streak}</p>
+            <Button
+              onClick={resetGame}
+              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full transition-all duration-300 transform hover:scale-105"
+            >
+              Play Again
+            </Button>
+          </motion.div>
         </motion.div>
       )}
     </div>
