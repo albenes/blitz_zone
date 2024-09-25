@@ -7,7 +7,7 @@ import wordList from './public/words.json'
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
-const GAME_DURATION = 180 // 3 minutes in seconds
+const GAME_DURATION = 120 // 3 minutes in seconds
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
