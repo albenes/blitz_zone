@@ -73,8 +73,6 @@ export default function Component() {
 
     setUsedLetters(newUsedLetters)
 
-    console.log('Used Letters:', newUsedLetters)
-
     if (correct === WORD_LENGTH) {
       setScore((prevScore) => prevScore + 100 + timeLeft)
       setStreak((prevStreak) => prevStreak + 1)
