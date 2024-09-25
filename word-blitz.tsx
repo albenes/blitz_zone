@@ -7,7 +7,7 @@ import wordList from './public/words.json'
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
-const GAME_DURATION = 120 // 3 minutes in seconds
+const GAME_DURATION = 120 // 2 minutes in seconds
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
@@ -16,10 +16,10 @@ const keyboard = [
 ]
 
 export default function Component() {
-  const [board, setBoard] = useState(Array(MAX_ATTEMPTS).fill(""))
+  const [board, setBoard] = useState<string[]>(Array(MAX_ATTEMPTS).fill(""))
   const [currentAttempt, setCurrentAttempt] = useState(0)
   const [usedLetters, setUsedLetters] = useState<Record<string, "correct" | "present" | "absent">>({})
-  const [gameState, setGameState] = useState("playing") // 'playing', 'summary'
+  const [gameState, setGameState] = useState<"playing" | "summary">("playing")
   const [timeLeft, setTimeLeft] = useState(GAME_DURATION)
   const [score, setScore] = useState(0)
   const [streak, setStreak] = useState(0)
@@ -31,33 +31,28 @@ export default function Component() {
   }, [])
 
   const getRandomWord = useCallback(() => {
-    return words[Math.floor(Math.random() * words.length)]
+    return words[Math.floor(Math.random() * words.length)].toUpperCase()
   }, [words])
 
-  console.log('Target Word:', targetWord);  /////////////
-//console.log('Current Word:', currentWord);
-//console.log('Used Letters:', newUsedLetters);
-
   const checkWord = useCallback(() => {
-    const currentWord = board[currentAttempt].toLowerCase()
-    const normalizedTarget = targetWord.toLowerCase()
-
+    const currentWord = board[currentAttempt]
     if (currentWord.length !== WORD_LENGTH) return
 
     console.log('Current Word:', currentWord)
+    console.log('Target Word:', targetWord)
 
     let newUsedLetters = { ...usedLetters }
     let correct = 0
     let letterCount: Record<string, number> = {}
 
     // Count occurrences of each letter in the target word
-    for (let letter of normalizedTarget) {
+    for (let letter of targetWord) {
       letterCount[letter] = (letterCount[letter] || 0) + 1
     }
 
     // First pass: Mark correct letters
     for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] === normalizedTarget[i]) {
+      if (currentWord[i] === targetWord[i]) {
         newUsedLetters[currentWord[i]] = "correct"
         correct++
         letterCount[currentWord[i]]--
@@ -66,17 +61,12 @@ export default function Component() {
 
     // Second pass: Mark present or absent letters
     for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] !== normalizedTarget[i]) {
-        const letter = currentWord[i]
-        if (letterCount[letter] > 0) {
-          if (newUsedLetters[letter] !== "correct") {
-            newUsedLetters[letter] = "present"
-          }
-          letterCount[letter]--
+      if (currentWord[i] !== targetWord[i]) {
+        if (letterCount[currentWord[i]] > 0) {
+          newUsedLetters[currentWord[i]] = newUsedLetters[currentWord[i]] === "correct" ? "correct" : "present"
+          letterCount[currentWord[i]]--
         } else {
-          if (newUsedLetters[letter] !== "correct" && newUsedLetters[letter] !== "present") {
-            newUsedLetters[letter] = "absent"
-          }
+          newUsedLetters[currentWord[i]] = newUsedLetters[currentWord[i]] || "absent"
         }
       }
     }
@@ -109,7 +99,7 @@ export default function Component() {
 
         if (key === "Backspace" && currentWord.length > 0) {
           newBoard[currentAttempt] = currentWord.slice(0, -1)
-        } else if (key === "Enter") {
+        } else if (key === "Enter" && currentWord.length === WORD_LENGTH) {
           checkWord()
         } else if (currentWord.length < WORD_LENGTH && key.length === 1 && key.match(/[a-z]/i)) {
           newBoard[currentAttempt] = currentWord + key.toUpperCase()
@@ -136,7 +126,7 @@ export default function Component() {
     }
   }, [timeLeft, gameState])
 
-  const resetGame = () => {
+  const resetGame = useCallback(() => {
     setBoard(Array(MAX_ATTEMPTS).fill(""))
     setCurrentAttempt(0)
     setUsedLetters({})
@@ -145,13 +135,20 @@ export default function Component() {
     setTargetWord(getRandomWord())
     setScore(0)
     setStreak(0)
-  }
+  }, [getRandomWord])
 
   useEffect(() => {
-    if (words.length > 0) {
+    if (words.length > 0 && !targetWord) {
       resetGame()
     }
-  }, [words])
+  }, [words, targetWord, resetGame])
+
+  const getLetterColor = useCallback((rowIndex: number, colIndex: number, letter: string) => {
+    if (rowIndex >= currentAttempt) return "bg-opacity-20 bg-white"
+    if (letter === targetWord[colIndex]) return "bg-green-500"
+    if (targetWord.includes(letter)) return "bg-yellow-500"
+    return "bg-gray-400"
+  }, [currentAttempt, targetWord])
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white p-4">
@@ -201,16 +198,10 @@ export default function Component() {
               .fill('')
               .map((_, colIndex) => {
                 const letter = row[colIndex] || ""
-                let bgColor = "bg-opacity-20 bg-white"
-                if (rowIndex < currentAttempt) {
-                  if (letter === targetWord[colIndex]) bgColor = "bg-green-500"
-                  else if (targetWord.includes(letter)) bgColor = "bg-yellow-500"
-                  else bgColor = "bg-gray-400"
-                }
                 return (
                   <motion.div
                     key={colIndex}
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${bgColor}`}
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${getLetterColor(rowIndex, colIndex, letter)}`}
                     initial={{ rotateY: 0 }}
                     animate={{ rotateY: letter ? 360 : 0 }}
                     transition={{ duration: 0.3 }}
