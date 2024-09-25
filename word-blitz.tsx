@@ -7,7 +7,7 @@ import wordList from './public/words.json'
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
-const GAME_DURATION = 120 // 3 minutes in seconds
+const GAME_DURATION = 180 // 3 minutes in seconds
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
@@ -40,15 +40,31 @@ export default function Component() {
 
     let newUsedLetters = { ...usedLetters }
     let correct = 0
+    let letterCount: Record<string, number> = {}
 
+    // Count occurrences of each letter in the target word
+    for (let letter of targetWord) {
+      letterCount[letter] = (letterCount[letter] || 0) + 1
+    }
+
+    // First pass: Mark correct letters
     for (let i = 0; i < WORD_LENGTH; i++) {
       if (currentWord[i] === targetWord[i]) {
         newUsedLetters[currentWord[i]] = "correct"
         correct++
-      } else if (targetWord.includes(currentWord[i])) {
-        newUsedLetters[currentWord[i]] = "present"
-      } else {
-        newUsedLetters[currentWord[i]] = "absent"
+        letterCount[currentWord[i]]--
+      }
+    }
+
+    // Second pass: Mark present or absent letters
+    for (let i = 0; i < WORD_LENGTH; i++) {
+      if (currentWord[i] !== targetWord[i]) {
+        if (letterCount[currentWord[i]] > 0) {
+          newUsedLetters[currentWord[i]] = "present"
+          letterCount[currentWord[i]]--
+        } else {
+          newUsedLetters[currentWord[i]] = "absent"
+        }
       }
     }
 
