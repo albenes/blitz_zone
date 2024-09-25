@@ -34,9 +34,15 @@ export default function Component() {
     return words[Math.floor(Math.random() * words.length)]
   }, [words])
 
+  console.log('Target Word:', targetWord);  /////////////
+//console.log('Current Word:', currentWord);
+//console.log('Used Letters:', newUsedLetters);
+
   const checkWord = useCallback(() => {
     const currentWord = board[currentAttempt]
     if (currentWord.length !== WORD_LENGTH) return
+
+    console.log('Current Word:', currentWord);  /////////////
 
     let newUsedLetters = { ...usedLetters }
     let correct = 0
@@ -69,6 +75,8 @@ export default function Component() {
     }
 
     setUsedLetters(newUsedLetters)
+
+    console.log('Used Letters:', newUsedLetters); /////////////
 
     if (correct === WORD_LENGTH) {
       setScore((prevScore) => prevScore + 100 + timeLeft)
