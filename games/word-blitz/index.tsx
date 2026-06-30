@@ -1,13 +1,15 @@
-"use client"
-
 import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
-import wordList from './public/words.json'
+import wordList from "@/public/words.json"
+import { GameContainer } from "@/components/game/GameContainer"
+import { GameHUD } from "@/components/game/GameHUD"
+import { GameSummaryModal } from "@/components/game/GameSummaryModal"
+import { useGameTimer } from "@/hooks/useGameTimer"
+import { useGameScore } from "@/hooks/useGameScore"
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
-const GAME_DURATION = 120 // 2 minutes in seconds
+const GAME_DURATION = 120
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
@@ -15,16 +17,21 @@ const keyboard = [
   ["Z", "X", "C", "V", "B", "N", "M"],
 ]
 
-export default function Component() {
+export default function WordBlitz() {
   const [board, setBoard] = useState<string[]>(Array(MAX_ATTEMPTS).fill(""))
   const [currentAttempt, setCurrentAttempt] = useState(0)
   const [usedLetters, setUsedLetters] = useState<Record<string, "correct" | "present" | "absent">>({})
   const [gameState, setGameState] = useState<"playing" | "summary">("playing")
-  const [timeLeft, setTimeLeft] = useState(GAME_DURATION)
-  const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
   const [targetWord, setTargetWord] = useState("")
   const [words, setWords] = useState<string[]>([])
+  const { score, streak, addScore, incrementStreak, reset: resetScore } = useGameScore()
+
+  const handleTimeUp = useCallback(() => setGameState("summary"), [])
+  const { formattedTime, timeLeft, reset: resetTimer } = useGameTimer({
+    duration: GAME_DURATION,
+    isActive: gameState === "playing",
+    onTimeUp: handleTimeUp,
+  })
 
   useEffect(() => {
     setWords(wordList.words)
@@ -38,19 +45,14 @@ export default function Component() {
     const currentWord = board[currentAttempt]
     if (currentWord.length !== WORD_LENGTH) return
 
-    console.log('Current Word:', currentWord)
-    console.log('Target Word:', targetWord)
-
-    let newUsedLetters = { ...usedLetters }
+    const newUsedLetters = { ...usedLetters }
     let correct = 0
-    let letterCount: Record<string, number> = {}
+    const letterCount: Record<string, number> = {}
 
-    // Count occurrences of each letter in the target word
-    for (let letter of targetWord) {
+    for (const letter of targetWord) {
       letterCount[letter] = (letterCount[letter] || 0) + 1
     }
 
-    // First pass: Mark correct letters
     for (let i = 0; i < WORD_LENGTH; i++) {
       if (currentWord[i] === targetWord[i]) {
         newUsedLetters[currentWord[i]] = "correct"
@@ -59,11 +61,11 @@ export default function Component() {
       }
     }
 
-    // Second pass: Mark present or absent letters
     for (let i = 0; i < WORD_LENGTH; i++) {
       if (currentWord[i] !== targetWord[i]) {
         if (letterCount[currentWord[i]] > 0) {
-          newUsedLetters[currentWord[i]] = newUsedLetters[currentWord[i]] === "correct" ? "correct" : "present"
+          newUsedLetters[currentWord[i]] =
+            newUsedLetters[currentWord[i]] === "correct" ? "correct" : "present"
           letterCount[currentWord[i]]--
         } else {
           newUsedLetters[currentWord[i]] = newUsedLetters[currentWord[i]] || "absent"
@@ -74,8 +76,8 @@ export default function Component() {
     setUsedLetters(newUsedLetters)
 
     if (correct === WORD_LENGTH) {
-      setScore((prevScore) => prevScore + 100 + timeLeft)
-      setStreak((prevStreak) => prevStreak + 1)
+      addScore(100 + timeLeft)
+      incrementStreak()
       setTargetWord(getRandomWord())
       setBoard(Array(MAX_ATTEMPTS).fill(""))
       setCurrentAttempt(0)
@@ -85,7 +87,7 @@ export default function Component() {
     } else {
       setCurrentAttempt((prev) => prev + 1)
     }
-  }, [board, currentAttempt, targetWord, usedLetters, timeLeft, getRandomWord])
+  }, [board, currentAttempt, targetWord, usedLetters, timeLeft, getRandomWord, addScore, incrementStreak])
 
   const handleKeyPress = useCallback(
     (key: string) => {
@@ -115,25 +117,15 @@ export default function Component() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyPress])
 
-  useEffect(() => {
-    if (gameState === "playing" && timeLeft > 0) {
-      const timer = setTimeout(() => setTimeLeft(timeLeft - 1), 1000)
-      return () => clearTimeout(timer)
-    } else if (timeLeft === 0) {
-      setGameState("summary")
-    }
-  }, [timeLeft, gameState])
-
   const resetGame = useCallback(() => {
     setBoard(Array(MAX_ATTEMPTS).fill(""))
     setCurrentAttempt(0)
     setUsedLetters({})
     setGameState("playing")
-    setTimeLeft(GAME_DURATION)
+    resetTimer(GAME_DURATION)
     setTargetWord(getRandomWord())
-    setScore(0)
-    setStreak(0)
-  }, [getRandomWord])
+    resetScore()
+  }, [getRandomWord, resetTimer, resetScore])
 
   useEffect(() => {
     if (words.length > 0 && !targetWord) {
@@ -141,49 +133,19 @@ export default function Component() {
     }
   }, [words, targetWord, resetGame])
 
-  const getLetterColor = useCallback((rowIndex: number, colIndex: number, letter: string) => {
-    if (rowIndex >= currentAttempt) return "bg-opacity-20 bg-white"
-    if (letter === targetWord[colIndex]) return "bg-green-500"
-    if (targetWord.includes(letter)) return "bg-yellow-500"
-    return "bg-gray-400"
-  }, [currentAttempt, targetWord])
+  const getLetterColor = useCallback(
+    (rowIndex: number, colIndex: number, letter: string) => {
+      if (rowIndex >= currentAttempt) return "bg-opacity-20 bg-white"
+      if (letter === targetWord[colIndex]) return "bg-green-500"
+      if (targetWord.includes(letter)) return "bg-yellow-500"
+      return "bg-gray-400"
+    },
+    [currentAttempt, targetWord]
+  )
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-800 text-white p-4">
-      <motion.h1
-        className="text-5xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400"
-        initial={{ opacity: 0, y: -50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
-        Word Blitz
-      </motion.h1>
-      <div className="mb-6 flex space-x-8">
-        <motion.div
-          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          Time: {Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}
-        </motion.div>
-        <motion.div
-          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          Score: {score}
-        </motion.div>
-        <motion.div
-          className="text-2xl font-semibold bg-opacity-20 bg-white backdrop-blur-md rounded-full px-6 py-2"
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          Streak: {streak}
-        </motion.div>
-      </div>
+    <GameContainer title="Word Blitz">
+      <GameHUD formattedTime={formattedTime} score={score} streak={streak} streakLabel="Words" />
       <motion.div
         className="grid grid-rows-6 gap-2 mb-6"
         initial={{ opacity: 0, scale: 0.9 }}
@@ -193,7 +155,7 @@ export default function Component() {
         {board.map((row, rowIndex) => (
           <div key={rowIndex} className="grid grid-cols-5 gap-2">
             {Array(WORD_LENGTH)
-              .fill('')
+              .fill("")
               .map((_, colIndex) => {
                 const letter = row[colIndex] || ""
                 return (
@@ -257,31 +219,14 @@ export default function Component() {
           </motion.button>
         </div>
       </motion.div>
-      {gameState === "summary" && (
-        <motion.div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <motion.div
-            className="bg-white text-black p-8 rounded-lg shadow-lg text-center"
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ delay: 0.1, duration: 0.3 }}
-          >
-            <h2 className="text-3xl font-bold mb-4">Game Summary</h2>
-            <p className="text-xl mb-2">Final Score: {score}</p>
-            <p className="text-xl mb-4">Words Guessed: {streak}</p>
-            <Button
-              onClick={resetGame}
-              className="bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full transition-all duration-300 transform hover:scale-105"
-            >
-              Play Again
-            </Button>
-          </motion.div>
-        </motion.div>
-      )}
-    </div>
+      <GameSummaryModal
+        isOpen={gameState === "summary"}
+        stats={[
+          { label: "Final Score", value: score },
+          { label: "Words Guessed", value: streak },
+        ]}
+        onPlayAgain={resetGame}
+      />
+    </GameContainer>
   )
 }
