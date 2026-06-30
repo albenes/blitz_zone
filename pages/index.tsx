@@ -1,4 +1,4 @@
-import BlitzZoneLayout from '../blitzzone-layout'
+import BlitzZoneLayout from "@/components/layout/BlitzZoneLayout"
 
 export default function Home() {
   return <BlitzZoneLayout />
