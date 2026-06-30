@@ -7,6 +7,10 @@ const PRIORITY: Record<LetterResult, number> = {
 }
 
 export function evaluateGuess(guess: string, target: string): LetterResult[] {
+  if (guess.length !== target.length || guess.length === 0) {
+    return Array(Math.max(guess.length, target.length, 1)).fill("absent") as LetterResult[]
+  }
+
   const results: LetterResult[] = Array(guess.length).fill("absent")
   const letterCount: Record<string, number> = {}
 

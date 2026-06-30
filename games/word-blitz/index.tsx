@@ -43,13 +43,14 @@ export default function WordBlitz() {
   const gameState = useGameState("idle")
   const { setInProgress, isExternallyPaused } = useGameSession()
   const { highScore, isNewRecord, recordScore, resetRecordFlag } = useHighScore("word-blitz")
+  const { end: endGame } = gameState
 
   const wordSet = useMemo(
     () => new Set(words.map((w) => w.toUpperCase())),
     [words]
   )
 
-  const handleTimeUp = useCallback(() => gameState.end(), [gameState])
+  const handleTimeUp = useCallback(() => endGame(), [endGame])
   const timerActive = gameState.isTimerActive && !isExternallyPaused
   const { formattedTime, timeLeft, reset: resetTimer } = useGameTimer({
     duration: GAME_DURATION,

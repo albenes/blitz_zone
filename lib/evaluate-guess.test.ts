@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { evaluateGuess, mergeLetterStates } from "@/lib/evaluate-guess"
+import { evaluateGuess, mergeLetterStates, letterResultToColor } from "@/lib/evaluate-guess"
 
 describe("evaluateGuess", () => {
   it("marks an exact match as all correct", () => {
@@ -41,6 +41,35 @@ describe("evaluateGuess", () => {
       "absent",
     ])
   })
+
+  it("returns all absent when lengths differ", () => {
+    expect(evaluateGuess("HELLO", "HI")).toEqual(["absent", "absent", "absent", "absent", "absent"])
+    expect(evaluateGuess("HI", "HELLO")).toEqual(["absent", "absent", "absent", "absent", "absent"])
+  })
+
+  it("returns absent for empty strings", () => {
+    expect(evaluateGuess("", "")).toEqual(["absent"])
+  })
+
+  it("handles classic Wordle case: SOARE vs ROAST", () => {
+    expect(evaluateGuess("SOARE", "ROAST")).toEqual([
+      "present",
+      "correct",
+      "correct",
+      "present",
+      "absent",
+    ])
+  })
+
+  it("handles letters appearing twice in guess but once in target", () => {
+    expect(evaluateGuess("SPEED", "SPARE")).toEqual([
+      "correct",
+      "correct",
+      "present",
+      "absent",
+      "absent",
+    ])
+  })
 })
 
 describe("mergeLetterStates", () => {
@@ -54,5 +83,17 @@ describe("mergeLetterStates", () => {
   it("does not downgrade correct to present", () => {
     const merged = mergeLetterStates({ A: "correct" }, "ALONG", "APPLE")
     expect(merged.A).toBe("correct")
+  })
+
+  it("upgrades absent to present", () => {
+    const merged = mergeLetterStates({ T: "absent" }, "TRACE", "CRATE")
+    expect(merged.T).toBe("present")
+  })
+})
+
+describe("letterResultToColor", () => {
+  it("returns safe CSS classes without user input", () => {
+    expect(letterResultToColor("correct")).toBe("bg-green-500")
+    expect(letterResultToColor(undefined)).toBe("bg-opacity-20 bg-white")
   })
 })

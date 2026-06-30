@@ -25,6 +25,7 @@ export function calcWordBlitzWordScore(timeLeftSeconds: number): number {
  * Example: complete at 0:42 → 42 points.
  */
 export function calcSudokuSubgridScore(timeLeftSeconds: number): number {
+  if (!Number.isFinite(timeLeftSeconds)) return 0
   return Math.max(0, timeLeftSeconds)
 }
 

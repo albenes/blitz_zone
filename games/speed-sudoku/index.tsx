@@ -34,8 +34,9 @@ export default function SpeedSudoku() {
   const gameState = useGameState("idle")
   const { setInProgress, isExternallyPaused } = useGameSession()
   const { highScore, isNewRecord, recordScore, resetRecordFlag } = useHighScore("speed-sudoku")
+  const { end: endGame } = gameState
 
-  const handleTimeUp = useCallback(() => gameState.end(), [gameState])
+  const handleTimeUp = useCallback(() => endGame(), [endGame])
   const timerActive = gameState.isTimerActive && !isExternallyPaused
   const { formattedTime, timeLeft, reset: resetTimer, penalize } = useGameTimer({
     duration: GAME_DURATION,
@@ -99,13 +100,13 @@ export default function SpeedSudoku() {
         if (timeLeft > 0) {
           loadPuzzle()
         } else {
-          gameState.end()
+          endGame()
         }
       } else {
         showError(`Incorrect subgrid — ${PENALTY_TIME}s penalty`)
       }
     },
-    [puzzle, timeLeft, addScore, incrementStreak, loadPuzzle, showError, gameState]
+    [puzzle, timeLeft, addScore, incrementStreak, loadPuzzle, showError, endGame]
   )
 
   const setCellValue = useCallback(

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 
 interface UseGameTimerOptions {
   duration: number
@@ -8,22 +8,37 @@ interface UseGameTimerOptions {
 
 export function useGameTimer({ duration, isActive, onTimeUp }: UseGameTimerOptions) {
   const [timeLeft, setTimeLeft] = useState(duration)
+  const onTimeUpRef = useRef(onTimeUp)
+  const hasCalledTimeUpRef = useRef(false)
+
+  useEffect(() => {
+    onTimeUpRef.current = onTimeUp
+  }, [onTimeUp])
+
+  useEffect(() => {
+    if (timeLeft > 0) {
+      hasCalledTimeUpRef.current = false
+    }
+  }, [timeLeft])
 
   useEffect(() => {
     if (isActive && timeLeft > 0) {
       const timer = setTimeout(() => setTimeLeft((t) => t - 1), 1000)
       return () => clearTimeout(timer)
     }
-    if (timeLeft === 0 && isActive) {
-      onTimeUp?.()
+    if (timeLeft === 0 && isActive && !hasCalledTimeUpRef.current) {
+      hasCalledTimeUpRef.current = true
+      onTimeUpRef.current?.()
     }
-  }, [timeLeft, isActive, onTimeUp])
+  }, [timeLeft, isActive])
 
   const reset = useCallback((newDuration = duration) => {
+    hasCalledTimeUpRef.current = false
     setTimeLeft(newDuration)
   }, [duration])
 
   const penalize = useCallback((seconds: number) => {
+    if (!Number.isFinite(seconds) || seconds <= 0) return
     setTimeLeft((t) => Math.max(0, t - seconds))
   }, [])
 
