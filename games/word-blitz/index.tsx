@@ -1,11 +1,17 @@
-import { useState, useEffect, useCallback } from "react"
-import { motion } from "framer-motion"
+import { useState, useEffect, useCallback, useMemo } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import wordList from "@/public/words.json"
 import { GameContainer } from "@/components/game/GameContainer"
 import { GameHUD } from "@/components/game/GameHUD"
 import { GameSummaryModal } from "@/components/game/GameSummaryModal"
 import { useGameTimer } from "@/hooks/useGameTimer"
 import { useGameScore } from "@/hooks/useGameScore"
+import {
+  evaluateGuess,
+  mergeLetterStates,
+  letterResultToColor,
+  type LetterResult,
+} from "@/lib/evaluate-guess"
 
 const WORD_LENGTH = 5
 const MAX_ATTEMPTS = 6
@@ -20,11 +26,20 @@ const keyboard = [
 export default function WordBlitz() {
   const [board, setBoard] = useState<string[]>(Array(MAX_ATTEMPTS).fill(""))
   const [currentAttempt, setCurrentAttempt] = useState(0)
-  const [usedLetters, setUsedLetters] = useState<Record<string, "correct" | "present" | "absent">>({})
+  const [usedLetters, setUsedLetters] = useState<Record<string, LetterResult>>({})
+  const [rowResults, setRowResults] = useState<LetterResult[][]>([])
   const [gameState, setGameState] = useState<"playing" | "summary">("playing")
   const [targetWord, setTargetWord] = useState("")
   const [words, setWords] = useState<string[]>([])
-  const { score, streak, addScore, incrementStreak, reset: resetScore } = useGameScore()
+  const [lastFailedWord, setLastFailedWord] = useState<string | null>(null)
+  const [invalidWordMessage, setInvalidWordMessage] = useState<string | null>(null)
+  const [revealedWord, setRevealedWord] = useState<string | null>(null)
+  const { score, streak, addScore, incrementStreak, reset: resetScore, setStreak } = useGameScore()
+
+  const wordSet = useMemo(
+    () => new Set(words.map((w) => w.toUpperCase())),
+    [words]
+  )
 
   const handleTimeUp = useCallback(() => setGameState("summary"), [])
   const { formattedTime, timeLeft, reset: resetTimer } = useGameTimer({
@@ -37,61 +52,79 @@ export default function WordBlitz() {
     setWords(wordList.words)
   }, [])
 
+  useEffect(() => {
+    if (!invalidWordMessage) return
+    const timer = setTimeout(() => setInvalidWordMessage(null), 2000)
+    return () => clearTimeout(timer)
+  }, [invalidWordMessage])
+
   const getRandomWord = useCallback(() => {
     return words[Math.floor(Math.random() * words.length)].toUpperCase()
   }, [words])
+
+  const startNextWord = useCallback(() => {
+    setBoard(Array(MAX_ATTEMPTS).fill(""))
+    setCurrentAttempt(0)
+    setUsedLetters({})
+    setRowResults([])
+    setTargetWord(getRandomWord())
+  }, [getRandomWord])
+
+  useEffect(() => {
+    if (!revealedWord) return
+    const timer = setTimeout(() => {
+      setRevealedWord(null)
+      startNextWord()
+    }, 1500)
+    return () => clearTimeout(timer)
+  }, [revealedWord, startNextWord])
 
   const checkWord = useCallback(() => {
     const currentWord = board[currentAttempt]
     if (currentWord.length !== WORD_LENGTH) return
 
-    const newUsedLetters = { ...usedLetters }
-    let correct = 0
-    const letterCount: Record<string, number> = {}
-
-    for (const letter of targetWord) {
-      letterCount[letter] = (letterCount[letter] || 0) + 1
+    if (!wordSet.has(currentWord)) {
+      setInvalidWordMessage("Not in word list")
+      return
     }
 
-    for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] === targetWord[i]) {
-        newUsedLetters[currentWord[i]] = "correct"
-        correct++
-        letterCount[currentWord[i]]--
-      }
-    }
+    const results = evaluateGuess(currentWord, targetWord)
+    const newRowResults = [...rowResults, results]
+    const newUsedLetters = mergeLetterStates(usedLetters, currentWord, targetWord)
 
-    for (let i = 0; i < WORD_LENGTH; i++) {
-      if (currentWord[i] !== targetWord[i]) {
-        if (letterCount[currentWord[i]] > 0) {
-          newUsedLetters[currentWord[i]] =
-            newUsedLetters[currentWord[i]] === "correct" ? "correct" : "present"
-          letterCount[currentWord[i]]--
-        } else {
-          newUsedLetters[currentWord[i]] = newUsedLetters[currentWord[i]] || "absent"
-        }
-      }
-    }
-
+    setRowResults(newRowResults)
     setUsedLetters(newUsedLetters)
 
-    if (correct === WORD_LENGTH) {
+    const isCorrect = results.every((r) => r === "correct")
+
+    if (isCorrect) {
       addScore(100 + timeLeft)
       incrementStreak()
-      setTargetWord(getRandomWord())
-      setBoard(Array(MAX_ATTEMPTS).fill(""))
-      setCurrentAttempt(0)
-      setUsedLetters({})
+      startNextWord()
     } else if (currentAttempt === MAX_ATTEMPTS - 1) {
-      setGameState("summary")
+      setLastFailedWord(targetWord)
+      setStreak(0)
+      setRevealedWord(targetWord)
     } else {
       setCurrentAttempt((prev) => prev + 1)
     }
-  }, [board, currentAttempt, targetWord, usedLetters, timeLeft, getRandomWord, addScore, incrementStreak])
+  }, [
+    board,
+    currentAttempt,
+    targetWord,
+    usedLetters,
+    rowResults,
+    wordSet,
+    timeLeft,
+    addScore,
+    incrementStreak,
+    startNextWord,
+    setStreak,
+  ])
 
   const handleKeyPress = useCallback(
     (key: string) => {
-      if (gameState !== "playing") return
+      if (gameState !== "playing" || revealedWord) return
 
       setBoard((prevBoard) => {
         const newBoard = [...prevBoard]
@@ -108,7 +141,7 @@ export default function WordBlitz() {
         return newBoard
       })
     },
-    [checkWord, currentAttempt, gameState]
+    [checkWord, currentAttempt, gameState, revealedWord]
   )
 
   useEffect(() => {
@@ -121,10 +154,14 @@ export default function WordBlitz() {
     setBoard(Array(MAX_ATTEMPTS).fill(""))
     setCurrentAttempt(0)
     setUsedLetters({})
+    setRowResults([])
     setGameState("playing")
     resetTimer(GAME_DURATION)
     setTargetWord(getRandomWord())
     resetScore()
+    setLastFailedWord(null)
+    setRevealedWord(null)
+    setInvalidWordMessage(null)
   }, [getRandomWord, resetTimer, resetScore])
 
   useEffect(() => {
@@ -134,18 +171,48 @@ export default function WordBlitz() {
   }, [words, targetWord, resetGame])
 
   const getLetterColor = useCallback(
-    (rowIndex: number, colIndex: number, letter: string) => {
-      if (rowIndex >= currentAttempt) return "bg-opacity-20 bg-white"
-      if (letter === targetWord[colIndex]) return "bg-green-500"
-      if (targetWord.includes(letter)) return "bg-yellow-500"
-      return "bg-gray-400"
+    (rowIndex: number, colIndex: number) => {
+      if (rowIndex < rowResults.length) {
+        return letterResultToColor(rowResults[rowIndex][colIndex])
+      }
+      return "bg-opacity-20 bg-white"
     },
-    [currentAttempt, targetWord]
+    [rowResults]
   )
+
+  const summaryStats = [
+    { label: "Final Score", value: score },
+    { label: "Words Guessed", value: streak },
+    ...(lastFailedWord ? [{ label: "Last Missed Word", value: lastFailedWord }] : []),
+  ]
 
   return (
     <GameContainer title="Word Blitz">
       <GameHUD formattedTime={formattedTime} score={score} streak={streak} streakLabel="Words" />
+
+      <AnimatePresence>
+        {invalidWordMessage && (
+          <motion.p
+            className="text-yellow-400 font-semibold mb-4 text-center"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+          >
+            {invalidWordMessage}
+          </motion.p>
+        )}
+        {revealedWord && (
+          <motion.p
+            className="text-red-300 font-semibold mb-4 text-center"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            The word was: <span className="text-white font-bold">{revealedWord}</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
+
       <motion.div
         className="grid grid-rows-6 gap-2 mb-6"
         initial={{ opacity: 0, scale: 0.9 }}
@@ -161,9 +228,9 @@ export default function WordBlitz() {
                 return (
                   <motion.div
                     key={colIndex}
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${getLetterColor(rowIndex, colIndex, letter)}`}
+                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${getLetterColor(rowIndex, colIndex)}`}
                     initial={{ rotateY: 0 }}
-                    animate={{ rotateY: letter ? 360 : 0 }}
+                    animate={{ rotateY: letter && rowIndex < rowResults.length ? 360 : 0 }}
                     transition={{ duration: 0.3 }}
                   >
                     {letter}
@@ -181,23 +248,17 @@ export default function WordBlitz() {
       >
         {keyboard.map((row, rowIndex) => (
           <div key={rowIndex} className="flex justify-center mb-2">
-            {row.map((key) => {
-              let bgColor = "bg-opacity-20 bg-white hover:bg-opacity-30"
-              if (usedLetters[key] === "correct") bgColor = "bg-green-500"
-              else if (usedLetters[key] === "present") bgColor = "bg-yellow-500"
-              else if (usedLetters[key] === "absent") bgColor = "bg-gray-400"
-              return (
-                <motion.button
-                  key={key}
-                  className={`w-10 h-12 ${bgColor} m-0.5 rounded-lg font-semibold transition-colors duration-300`}
-                  onClick={() => handleKeyPress(key)}
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.95 }}
-                >
-                  {key}
-                </motion.button>
-              )
-            })}
+            {row.map((key) => (
+              <motion.button
+                key={key}
+                className={`w-10 h-12 ${letterResultToColor(usedLetters[key])} hover:bg-opacity-30 m-0.5 rounded-lg font-semibold transition-colors duration-300`}
+                onClick={() => handleKeyPress(key)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                {key}
+              </motion.button>
+            ))}
           </div>
         ))}
         <div className="flex justify-center mt-2">
@@ -221,10 +282,7 @@ export default function WordBlitz() {
       </motion.div>
       <GameSummaryModal
         isOpen={gameState === "summary"}
-        stats={[
-          { label: "Final Score", value: score },
-          { label: "Words Guessed", value: streak },
-        ]}
+        stats={summaryStats}
         onPlayAgain={resetGame}
       />
     </GameContainer>
