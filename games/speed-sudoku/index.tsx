@@ -8,6 +8,7 @@ import { useGameTimer } from "@/hooks/useGameTimer"
 import { useGameScore } from "@/hooks/useGameScore"
 import { useGameState } from "@/hooks/useGameState"
 import { useGameSession } from "@/contexts/GameSessionContext"
+import { useHighScore } from "@/hooks/useHighScore"
 import {
   generateSudokuPuzzle,
   isSubgridComplete,
@@ -16,9 +17,10 @@ import {
   type SudokuGrid,
   type SudokuPuzzle,
 } from "@/lib/sudoku"
+import { calcSudokuSubgridScore, SPEED_SUDOKU_CONFIG } from "@/lib/scoring"
 
-const GAME_DURATION = 90
-const PENALTY_TIME = 5
+const GAME_DURATION = SPEED_SUDOKU_CONFIG.DURATION_SECONDS
+const PENALTY_TIME = SPEED_SUDOKU_CONFIG.PENALTY_SECONDS
 
 export default function SpeedSudoku() {
   const [puzzle, setPuzzle] = useState<SudokuPuzzle | null>(null)
@@ -31,6 +33,7 @@ export default function SpeedSudoku() {
   const { score, streak, addScore, incrementStreak, reset: resetScore } = useGameScore()
   const gameState = useGameState("idle")
   const { setInProgress, isExternallyPaused } = useGameSession()
+  const { highScore, isNewRecord, recordScore, resetRecordFlag } = useHighScore("speed-sudoku")
 
   const handleTimeUp = useCallback(() => gameState.end(), [gameState])
   const timerActive = gameState.isTimerActive && !isExternallyPaused
@@ -53,14 +56,21 @@ export default function SpeedSudoku() {
     setPuzzleKey((k) => k + 1)
   }, [])
 
+  useEffect(() => {
+    if (gameState.isSummary) {
+      recordScore(score)
+    }
+  }, [gameState.isSummary, score, recordScore])
+
   const handleStart = useCallback(() => {
+    resetRecordFlag()
     resetTimer(GAME_DURATION)
     resetScore()
     setTotalCompleted(0)
     setErrorMessage(null)
     loadPuzzle()
     gameState.start()
-  }, [resetTimer, resetScore, loadPuzzle, gameState])
+  }, [resetTimer, resetScore, loadPuzzle, gameState, resetRecordFlag])
 
   useEffect(() => {
     if (!errorMessage) return
@@ -83,7 +93,7 @@ export default function SpeedSudoku() {
       if (!puzzle) return
 
       if (isSubgridCorrect(newGrid, puzzle.solution, puzzle.emptySubgrid)) {
-        addScore(Math.max(0, timeLeft))
+        addScore(calcSudokuSubgridScore(timeLeft))
         incrementStreak()
         setTotalCompleted((prev) => prev + 1)
         if (timeLeft > 0) {
@@ -125,6 +135,7 @@ export default function SpeedSudoku() {
   }
 
   const resetGame = () => {
+    resetRecordFlag()
     gameState.toIdle()
     resetTimer(GAME_DURATION)
     resetScore()
@@ -262,6 +273,8 @@ export default function SpeedSudoku() {
               { label: "Streak", value: streak },
               { label: "Grids Completed", value: totalCompleted },
             ]}
+            highScore={highScore}
+            isNewRecord={isNewRecord}
             onPlayAgain={resetGame}
           />
         </>

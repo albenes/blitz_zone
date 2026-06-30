@@ -6,6 +6,8 @@ interface GameSummaryModalProps {
   isOpen: boolean
   title?: string
   stats: GameSummaryStat[]
+  highScore?: number
+  isNewRecord?: boolean
   onPlayAgain: () => void
 }
 
@@ -13,6 +15,8 @@ export function GameSummaryModal({
   isOpen,
   title = "Game Summary",
   stats,
+  highScore,
+  isNewRecord,
   onPlayAgain,
 }: GameSummaryModalProps) {
   return (
@@ -38,11 +42,19 @@ export function GameSummaryModal({
             <h2 id="game-summary-title" className="text-2xl sm:text-3xl font-bold mb-4">
               {title}
             </h2>
+            {isNewRecord && (
+              <p className="text-purple-600 font-bold mb-3" role="status">
+                New Personal Best!
+              </p>
+            )}
             {stats.map(({ label, value }) => (
               <p key={label} className="text-xl mb-2">
                 {label}: {value}
               </p>
             ))}
+            {highScore !== undefined && highScore > 0 && (
+              <p className="text-gray-600 text-sm mt-2">Personal Best: {highScore}</p>
+            )}
             <Button
               onClick={onPlayAgain}
               className="mt-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white font-bold py-2 px-6 rounded-full transition-all duration-300 transform hover:scale-105"

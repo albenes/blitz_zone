@@ -10,16 +10,18 @@ import { useGameTimer } from "@/hooks/useGameTimer"
 import { useGameScore } from "@/hooks/useGameScore"
 import { useGameState } from "@/hooks/useGameState"
 import { useGameSession } from "@/contexts/GameSessionContext"
+import { useHighScore } from "@/hooks/useHighScore"
 import {
   evaluateGuess,
   mergeLetterStates,
   letterResultToColor,
   type LetterResult,
 } from "@/lib/evaluate-guess"
+import { calcWordBlitzWordScore, WORD_BLITZ_CONFIG } from "@/lib/scoring"
 
-const WORD_LENGTH = 5
-const MAX_ATTEMPTS = 6
-const GAME_DURATION = 120
+const WORD_LENGTH = WORD_BLITZ_CONFIG.WORD_LENGTH
+const MAX_ATTEMPTS = WORD_BLITZ_CONFIG.MAX_ATTEMPTS
+const GAME_DURATION = WORD_BLITZ_CONFIG.DURATION_SECONDS
 
 const keyboard = [
   ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
@@ -40,6 +42,7 @@ export default function WordBlitz() {
   const { score, streak, addScore, incrementStreak, reset: resetScore, setStreak } = useGameScore()
   const gameState = useGameState("idle")
   const { setInProgress, isExternallyPaused } = useGameSession()
+  const { highScore, isNewRecord, recordScore, resetRecordFlag } = useHighScore("word-blitz")
 
   const wordSet = useMemo(
     () => new Set(words.map((w) => w.toUpperCase())),
@@ -109,7 +112,7 @@ export default function WordBlitz() {
     const isCorrect = results.every((r) => r === "correct")
 
     if (isCorrect) {
-      addScore(100 + timeLeft)
+      addScore(calcWordBlitzWordScore(timeLeft))
       incrementStreak()
       startNextWord()
     } else if (currentAttempt === MAX_ATTEMPTS - 1) {
@@ -161,7 +164,14 @@ export default function WordBlitz() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyPress])
 
+  useEffect(() => {
+    if (gameState.isSummary) {
+      recordScore(score)
+    }
+  }, [gameState.isSummary, score, recordScore])
+
   const handleStart = useCallback(() => {
+    resetRecordFlag()
     resetTimer(GAME_DURATION)
     resetScore()
     setLastFailedWord(null)
@@ -173,9 +183,10 @@ export default function WordBlitz() {
     setUsedLetters({})
     setRowResults([])
     gameState.start()
-  }, [getRandomWord, resetTimer, resetScore, gameState])
+  }, [getRandomWord, resetTimer, resetScore, gameState, resetRecordFlag])
 
   const resetGame = useCallback(() => {
+    resetRecordFlag()
     gameState.toIdle()
     setBoard(Array(MAX_ATTEMPTS).fill(""))
     setCurrentAttempt(0)
@@ -187,7 +198,7 @@ export default function WordBlitz() {
     setLastFailedWord(null)
     setRevealedWord(null)
     setInvalidWordMessage(null)
-  }, [getRandomWord, resetTimer, resetScore, gameState])
+  }, [resetTimer, resetScore, gameState, resetRecordFlag])
 
   const getLetterColor = useCallback(
     (rowIndex: number, colIndex: number) => {
@@ -326,6 +337,8 @@ export default function WordBlitz() {
           <GameSummaryModal
             isOpen={gameState.isSummary}
             stats={summaryStats}
+            highScore={highScore}
+            isNewRecord={isNewRecord}
             onPlayAgain={resetGame}
           />
         </>

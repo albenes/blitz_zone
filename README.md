@@ -1,40 +1,89 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# BlitzZone
+
+Fast-paced mini-games built with Next.js. Guess words against the clock, solve sudoku subgrids, and chase your personal best.
+
+## Games
+
+| Game | Duration | Scoring |
+|------|----------|---------|
+| **Word Blitz** | 2 minutes | `100 + seconds remaining` per correct word |
+| **Speed Sudoku** | 90 seconds | `seconds remaining` per completed subgrid (−5s penalty on wrong submit) |
+
+High scores are saved locally in your browser (`localStorage`).
+
+## Tech Stack
+
+- **Next.js 14** (Pages Router)
+- **React 18** + TypeScript
+- **Tailwind CSS** + Framer Motion
+- **Vitest** for unit tests
+
+## Project Structure
+
+```
+components/
+  game/       Shared game UI (HUD, summary modal, letter tiles)
+  layout/     App shell, header, footer, home hub
+games/
+  word-blitz/
+  speed-sudoku/
+  registry.tsx
+hooks/        useGameTimer, useGameScore, useGameState, useHighScore
+lib/          Game logic, scoring, sudoku, evaluate-guess
+contexts/     Game session (pause on navigation)
+pages/        Next.js routes
+```
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `pages/index.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-[API routes](https://nextjs.org/docs/api-routes/introduction) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.ts`.
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Production build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript check |
+| `npm run test` | Run unit tests (Vitest) |
+| `npm run test:watch` | Tests in watch mode |
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/api-routes/introduction) instead of React pages.
+## Testing
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Tests cover core game logic:
 
-## Learn More
+- `lib/evaluate-guess.test.ts` — Wordle-style letter evaluation
+- `lib/sudoku.test.ts` — Puzzle generation and validation
+- `lib/scoring.test.ts` — Score formulas
+- `lib/high-scores.test.ts` — Personal best persistence
+- `hooks/useGameTimer.test.ts` — Countdown and penalty behavior
 
-To learn more about Next.js, take a look at the following resources:
+## Scoring Reference
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Scoring constants live in `lib/scoring.ts`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+```ts
+// Word Blitz: 100 base + time left when word is guessed
+calcWordBlitzWordScore(timeLeft) // e.g. 100 + 105 = 205
 
-## Deploy on Vercel
+// Speed Sudoku: time left when subgrid is completed
+calcSudokuSubgridScore(timeLeft) // e.g. 42
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Roadmap
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- [x] Architecture refactor and shared components
+- [x] Game logic fixes (Sudoku validation, Word Blitz blitz mode)
+- [x] UX polish, landing hub, responsive layout
+- [x] Unit tests, CI, high scores
+- [ ] New games: Memory Match, Color Match, Math Challenge, Anagram Solver
+
+## License
+
+Private project.
