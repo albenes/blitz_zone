@@ -24,15 +24,20 @@ export function GameSummaryModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="game-summary-title"
         >
           <motion.div
-            className="bg-white text-black p-8 rounded-lg shadow-lg text-center mx-4"
+            className="bg-white text-black p-6 sm:p-8 rounded-lg shadow-lg text-center mx-4 max-w-sm w-full"
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             transition={{ delay: 0.1, duration: 0.3 }}
           >
-            <h2 className="text-3xl font-bold mb-4">{title}</h2>
+            <h2 id="game-summary-title" className="text-2xl sm:text-3xl font-bold mb-4">
+              {title}
+            </h2>
             {stats.map(({ label, value }) => (
               <p key={label} className="text-xl mb-2">
                 {label}: {value}

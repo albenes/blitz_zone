@@ -12,11 +12,23 @@ const SpeedSudoku = dynamic(() => import("@/games/speed-sudoku"), {
 })
 
 export const games: GameDefinition[] = [
-  { id: "word-blitz", name: "Word Blitz", icon: Zap, component: WordBlitz },
-  { id: "speed-sudoku", name: "Speed Sudoku", icon: Clock, component: SpeedSudoku },
+  {
+    id: "word-blitz",
+    name: "Word Blitz",
+    description: "Guess as many 5-letter words as you can before time runs out.",
+    duration: "2 min",
+    icon: Zap,
+    component: WordBlitz,
+  },
+  {
+    id: "speed-sudoku",
+    name: "Speed Sudoku",
+    description: "Fill 3×3 subgrids as fast as you can. Speed and accuracy matter.",
+    duration: "90 sec",
+    icon: Clock,
+    component: SpeedSudoku,
+  },
 ]
-
-export const defaultGameId: GameId = "word-blitz"
 
 export function getGameById(id: GameId): GameDefinition {
   const game = games.find((g) => g.id === id)

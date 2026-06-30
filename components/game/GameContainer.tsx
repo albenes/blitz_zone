@@ -8,9 +8,12 @@ interface GameContainerProps {
 
 export function GameContainer({ title, children }: GameContainerProps) {
   return (
-    <div className="flex flex-col items-center w-full text-white p-4">
+    <section
+      className="flex flex-col items-center w-full text-white p-2 sm:p-4"
+      aria-label={title}
+    >
       <motion.h1
-        className="text-4xl sm:text-5xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400"
+        className="text-3xl sm:text-4xl md:text-5xl font-bold mb-6 sm:mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-pink-400"
         initial={{ opacity: 0, y: -50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -18,6 +21,6 @@ export function GameContainer({ title, children }: GameContainerProps) {
         {title}
       </motion.h1>
       {children}
-    </div>
+    </section>
   )
 }

@@ -4,8 +4,12 @@ import wordList from "@/public/words.json"
 import { GameContainer } from "@/components/game/GameContainer"
 import { GameHUD } from "@/components/game/GameHUD"
 import { GameSummaryModal } from "@/components/game/GameSummaryModal"
+import { GameStartScreen } from "@/components/game/GameStartScreen"
+import { LetterTile } from "@/components/game/LetterTile"
 import { useGameTimer } from "@/hooks/useGameTimer"
 import { useGameScore } from "@/hooks/useGameScore"
+import { useGameState } from "@/hooks/useGameState"
+import { useGameSession } from "@/contexts/GameSessionContext"
 import {
   evaluateGuess,
   mergeLetterStates,
@@ -28,25 +32,32 @@ export default function WordBlitz() {
   const [currentAttempt, setCurrentAttempt] = useState(0)
   const [usedLetters, setUsedLetters] = useState<Record<string, LetterResult>>({})
   const [rowResults, setRowResults] = useState<LetterResult[][]>([])
-  const [gameState, setGameState] = useState<"playing" | "summary">("playing")
   const [targetWord, setTargetWord] = useState("")
   const [words, setWords] = useState<string[]>([])
   const [lastFailedWord, setLastFailedWord] = useState<string | null>(null)
   const [invalidWordMessage, setInvalidWordMessage] = useState<string | null>(null)
   const [revealedWord, setRevealedWord] = useState<string | null>(null)
   const { score, streak, addScore, incrementStreak, reset: resetScore, setStreak } = useGameScore()
+  const gameState = useGameState("idle")
+  const { setInProgress, isExternallyPaused } = useGameSession()
 
   const wordSet = useMemo(
     () => new Set(words.map((w) => w.toUpperCase())),
     [words]
   )
 
-  const handleTimeUp = useCallback(() => setGameState("summary"), [])
+  const handleTimeUp = useCallback(() => gameState.end(), [gameState])
+  const timerActive = gameState.isTimerActive && !isExternallyPaused
   const { formattedTime, timeLeft, reset: resetTimer } = useGameTimer({
     duration: GAME_DURATION,
-    isActive: gameState === "playing",
+    isActive: timerActive,
     onTimeUp: handleTimeUp,
   })
+
+  useEffect(() => {
+    setInProgress(gameState.isPlaying)
+    return () => setInProgress(false)
+  }, [gameState.isPlaying, setInProgress])
 
   useEffect(() => {
     setWords(wordList.words)
@@ -124,7 +135,7 @@ export default function WordBlitz() {
 
   const handleKeyPress = useCallback(
     (key: string) => {
-      if (gameState !== "playing" || revealedWord) return
+      if (!gameState.isPlaying || revealedWord || isExternallyPaused) return
 
       setBoard((prevBoard) => {
         const newBoard = [...prevBoard]
@@ -141,7 +152,7 @@ export default function WordBlitz() {
         return newBoard
       })
     },
-    [checkWord, currentAttempt, gameState, revealedWord]
+    [checkWord, currentAttempt, gameState.isPlaying, revealedWord, isExternallyPaused]
   )
 
   useEffect(() => {
@@ -150,25 +161,33 @@ export default function WordBlitz() {
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [handleKeyPress])
 
-  const resetGame = useCallback(() => {
-    setBoard(Array(MAX_ATTEMPTS).fill(""))
-    setCurrentAttempt(0)
-    setUsedLetters({})
-    setRowResults([])
-    setGameState("playing")
+  const handleStart = useCallback(() => {
     resetTimer(GAME_DURATION)
-    setTargetWord(getRandomWord())
     resetScore()
     setLastFailedWord(null)
     setRevealedWord(null)
     setInvalidWordMessage(null)
-  }, [getRandomWord, resetTimer, resetScore])
+    setTargetWord(getRandomWord())
+    setBoard(Array(MAX_ATTEMPTS).fill(""))
+    setCurrentAttempt(0)
+    setUsedLetters({})
+    setRowResults([])
+    gameState.start()
+  }, [getRandomWord, resetTimer, resetScore, gameState])
 
-  useEffect(() => {
-    if (words.length > 0 && !targetWord) {
-      resetGame()
-    }
-  }, [words, targetWord, resetGame])
+  const resetGame = useCallback(() => {
+    gameState.toIdle()
+    setBoard(Array(MAX_ATTEMPTS).fill(""))
+    setCurrentAttempt(0)
+    setUsedLetters({})
+    setRowResults([])
+    resetTimer(GAME_DURATION)
+    setTargetWord("")
+    resetScore()
+    setLastFailedWord(null)
+    setRevealedWord(null)
+    setInvalidWordMessage(null)
+  }, [getRandomWord, resetTimer, resetScore, gameState])
 
   const getLetterColor = useCallback(
     (rowIndex: number, colIndex: number) => {
@@ -188,103 +207,129 @@ export default function WordBlitz() {
 
   return (
     <GameContainer title="Word Blitz">
-      <GameHUD formattedTime={formattedTime} score={score} streak={streak} streakLabel="Words" />
+      {gameState.isIdle ? (
+        <GameStartScreen
+          title="Word Blitz"
+          description="Guess as many 5-letter words as you can in 2 minutes. Green = correct spot, yellow = wrong spot."
+          onStart={handleStart}
+        />
+      ) : (
+        <>
+          <GameHUD
+            formattedTime={formattedTime}
+            score={score}
+            streak={streak}
+            streakLabel="Words"
+            isPaused={isExternallyPaused}
+          />
 
-      <AnimatePresence>
-        {invalidWordMessage && (
-          <motion.p
-            className="text-yellow-400 font-semibold mb-4 text-center"
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-          >
-            {invalidWordMessage}
-          </motion.p>
-        )}
-        {revealedWord && (
-          <motion.p
-            className="text-red-300 font-semibold mb-4 text-center"
+          <div aria-live="polite" className="min-h-[1.5rem] mb-4 text-center">
+            <AnimatePresence>
+              {invalidWordMessage && (
+                <motion.p
+                  className="text-yellow-400 font-semibold"
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  role="alert"
+                >
+                  {invalidWordMessage}
+                </motion.p>
+              )}
+              {revealedWord && (
+                <motion.p
+                  className="text-red-300 font-semibold"
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  The word was: <span className="text-white font-bold">{revealedWord}</span>
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <motion.div
+            className="grid grid-rows-6 gap-1 sm:gap-2 mb-4 sm:mb-6"
+            role="grid"
+            aria-label="Word guesses"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
           >
-            The word was: <span className="text-white font-bold">{revealedWord}</span>
-          </motion.p>
-        )}
-      </AnimatePresence>
-
-      <motion.div
-        className="grid grid-rows-6 gap-2 mb-6"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, delay: 0.4 }}
-      >
-        {board.map((row, rowIndex) => (
-          <div key={rowIndex} className="grid grid-cols-5 gap-2">
-            {Array(WORD_LENGTH)
-              .fill("")
-              .map((_, colIndex) => {
-                const letter = row[colIndex] || ""
-                return (
-                  <motion.div
-                    key={colIndex}
-                    className={`w-12 h-12 rounded-lg flex items-center justify-center text-2xl font-bold ${getLetterColor(rowIndex, colIndex)}`}
-                    initial={{ rotateY: 0 }}
-                    animate={{ rotateY: letter && rowIndex < rowResults.length ? 360 : 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {letter}
-                  </motion.div>
-                )
-              })}
-          </div>
-        ))}
-      </motion.div>
-      <motion.div
-        className="mb-6"
-        initial={{ opacity: 0, y: 50 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.6 }}
-      >
-        {keyboard.map((row, rowIndex) => (
-          <div key={rowIndex} className="flex justify-center mb-2">
-            {row.map((key) => (
-              <motion.button
-                key={key}
-                className={`w-10 h-12 ${letterResultToColor(usedLetters[key])} hover:bg-opacity-30 m-0.5 rounded-lg font-semibold transition-colors duration-300`}
-                onClick={() => handleKeyPress(key)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                {key}
-              </motion.button>
+            {board.map((row, rowIndex) => (
+              <div key={rowIndex} className="grid grid-cols-5 gap-1 sm:gap-2" role="row">
+                {Array(WORD_LENGTH)
+                  .fill("")
+                  .map((_, colIndex) => {
+                    const letter = row[colIndex] || ""
+                    return (
+                      <LetterTile
+                        key={colIndex}
+                        letter={letter}
+                        colorClass={getLetterColor(rowIndex, colIndex)}
+                        isFlipped={rowIndex < rowResults.length}
+                        colIndex={colIndex}
+                      />
+                    )
+                  })}
+              </div>
             ))}
-          </div>
-        ))}
-        <div className="flex justify-center mt-2">
-          <motion.button
-            className="w-20 h-12 bg-opacity-20 bg-white hover:bg-opacity-30 m-0.5 rounded-lg font-semibold transition-colors duration-300"
-            onClick={() => handleKeyPress("Backspace")}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+          </motion.div>
+
+          <motion.div
+            className="mb-6 w-full max-w-lg"
+            role="group"
+            aria-label="On-screen keyboard"
+            initial={{ opacity: 0, y: 50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
           >
-            ←
-          </motion.button>
-          <motion.button
-            className="w-20 h-12 bg-opacity-20 bg-white hover:bg-opacity-30 m-0.5 rounded-lg font-semibold transition-colors duration-300"
-            onClick={() => handleKeyPress("Enter")}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Enter
-          </motion.button>
-        </div>
-      </motion.div>
-      <GameSummaryModal
-        isOpen={gameState === "summary"}
-        stats={summaryStats}
-        onPlayAgain={resetGame}
-      />
+            {keyboard.map((row, rowIndex) => (
+              <div key={rowIndex} className="flex justify-center mb-1 sm:mb-2">
+                {row.map((key) => (
+                  <motion.button
+                    key={key}
+                    className={`w-7 h-10 sm:w-9 md:w-10 sm:h-11 md:h-12 text-xs sm:text-sm ${letterResultToColor(usedLetters[key])} hover:bg-opacity-30 m-0.5 rounded-lg font-semibold transition-colors duration-300`}
+                    onClick={() => handleKeyPress(key)}
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    aria-label={`Letter ${key}`}
+                  >
+                    {key}
+                  </motion.button>
+                ))}
+              </div>
+            ))}
+            <div className="flex justify-center mt-1 sm:mt-2 gap-1">
+              <motion.button
+                className="w-16 sm:w-20 h-10 sm:h-12 bg-opacity-20 bg-white hover:bg-opacity-30 rounded-lg font-semibold text-sm transition-colors duration-300"
+                onClick={() => handleKeyPress("Backspace")}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                aria-label="Backspace"
+              >
+                ←
+              </motion.button>
+              <motion.button
+                className="w-16 sm:w-20 h-10 sm:h-12 bg-opacity-20 bg-white hover:bg-opacity-30 rounded-lg font-semibold text-sm transition-colors duration-300"
+                onClick={() => handleKeyPress("Enter")}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                aria-label="Submit guess"
+              >
+                Enter
+              </motion.button>
+            </div>
+          </motion.div>
+
+          <GameSummaryModal
+            isOpen={gameState.isSummary}
+            stats={summaryStats}
+            onPlayAgain={resetGame}
+          />
+        </>
+      )}
     </GameContainer>
   )
 }
